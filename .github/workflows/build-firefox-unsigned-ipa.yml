@@ -1,0 +1,83 @@
+name: Build Firefox unsigned IPA
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-firefox-unsigned-ipa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iPhone IPA
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Check out Firefox
+        uses: actions/checkout@v4
+
+      - name: Select supported Xcode
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_26.5.app/Contents/Developer
+          xcodebuild -version
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Bootstrap Mozilla dependencies
+        run: bash ./bootstrap.sh firefox
+
+      - name: Compile unsigned iPhone app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project firefox-ios/Client.xcodeproj \
+            -scheme Fennec \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/FirefoxDerivedData" \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/firefox-build.log"
+
+      - name: Package IPA for LiveContainer
+        run: |
+          set -euo pipefail
+          app="$RUNNER_TEMP/FirefoxDerivedData/Build/Products/Debug-iphoneos/Client.app"
+          test -d "$app" || { echo "Client.app was not produced" >&2; exit 1; }
+          mkdir -p "$RUNNER_TEMP/FirefoxIPA/Payload"
+          ditto "$app" "$RUNNER_TEMP/FirefoxIPA/Payload/Client.app"
+          cd "$RUNNER_TEMP/FirefoxIPA"
+          zip -qry "$GITHUB_WORKSPACE/Firefox-unsigned.ipa" Payload
+          unzip -tq "$GITHUB_WORKSPACE/Firefox-unsigned.ipa"
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefox-unsigned-IPA
+          path: Firefox-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Save build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Firefox-build-log
+          path: ${{ runner.temp }}/firefox-build.log
+          if-no-files-found: warn
+          retention-days: 3
