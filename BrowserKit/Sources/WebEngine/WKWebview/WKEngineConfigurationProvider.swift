@@ -93,7 +93,7 @@ public enum SOCKS5ProxyManager {
     }
 
     public static func save(_ settings: SOCKS5ProxySettings) throws {
-        guard settings.isValid else {
+        guard !settings.enabled || settings.isValid else {
             throw SOCKS5ProxyError.invalidConfiguration
         }
         try storePassword(settings.password)
@@ -162,7 +162,7 @@ public enum SOCKS5ProxyError: LocalizedError {
         case .invalidConfiguration:
             return "Enter a valid host, port (1–65535), and both username/password or neither."
         case .keychain(let status):
-            return "Could not save the proxy password in Keychain (OSStatus: \\(status))."
+            return "Could not save the proxy password in Keychain (OSStatus: \(status))."
         }
     }
 }
