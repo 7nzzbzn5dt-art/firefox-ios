@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - .github/workflows/build-firefox-unsigned-ipa.yml
+      - BrowserKit/Sources/WebEngine/WKWebview/WKEngineConfigurationProvider.swift
+      - firefox-ios/Client/Frontend/Settings/BrowsingSettingsViewController.swift
   workflow_dispatch:
 
 permissions:
